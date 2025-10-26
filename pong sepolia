@@ -1,0 +1,216 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+// -------------------- Address.sol --------------------
+library Address {
+    function isContract(address account) internal view returns (bool) {
+        return account.code.length > 0;
+    }
+
+    function functionCall(address target, bytes memory data) internal returns (bytes memory) {
+        return functionCallWithValue(target, data, 0, "Address: low-level call failed");
+    }
+
+    function functionCallWithValue(address target, bytes memory data, uint256 value, string memory errorMessage) internal returns (bytes memory) {
+        require(address(this).balance >= value, "Address: insufficient balance for call");
+        (bool success, bytes memory returndata) = target.call{value: value}(data);
+        return verifyCallResultFromTarget(/*target*/ address(0), success, returndata, errorMessage);
+    }
+
+    function verifyCallResultFromTarget(address /*target*/, bool success, bytes memory returndata, string memory errorMessage) internal pure returns(bytes memory) {
+        if (success) return returndata;
+        if (returndata.length > 0) {
+            assembly {
+                let returndata_size := mload(returndata)
+                revert(add(32, returndata), returndata_size)
+            }
+        } else {
+            revert(errorMessage);
+        }
+    }
+}
+
+// -------------------- SafeERC20.sol --------------------
+interface IERC20 {
+    function totalSupply() external view returns (uint256);
+    function balanceOf(address account) external view returns (uint256);
+    function transfer(address to, uint256 value) external returns (bool);
+    function allowance(address owner, address spender) external view returns (uint256);
+    function approve(address spender, uint256 value) external returns (bool);
+    function transferFrom(address from, address to, uint256 value) external returns (bool);
+}
+
+library SafeERC20 {
+    using Address for address;
+
+    function safeTransfer(IERC20 token, address to, uint256 value) internal {
+        _callOptionalReturn(token, abi.encodeCall(token.transfer, (to, value)));
+    }
+
+    function safeTransferFrom(IERC20 token, address from, address to, uint256 value) internal {
+        _callOptionalReturn(token, abi.encodeCall(token.transferFrom, (from, to, value)));
+    }
+
+    function safeApprove(IERC20 token, address spender, uint256 value) internal {
+        require((value == 0) || (token.allowance(address(this), spender) == 0), "SafeERC20: approve non-zero to non-zero");
+        _callOptionalReturn(token, abi.encodeCall(token.approve, (spender, value)));
+    }
+
+    function _callOptionalReturn(IERC20 token, bytes memory data) private {
+        bytes memory returndata = address(token).functionCall(data);
+        if (returndata.length != 0) {
+            require(abi.decode(returndata, (bool)), "SafeERC20: ERC20 operation did not succeed");
+        }
+    }
+}
+
+// -------------------- Context.sol --------------------
+abstract contract Context {
+    function _msgSender() internal view virtual returns (address) {
+        return msg.sender;
+    }
+}
+
+// -------------------- Ownable.sol --------------------
+abstract contract Ownable is Context {
+    address private _owner;
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+
+    constructor(address initialOwner) {
+        if (initialOwner == address(0)) initialOwner = _msgSender();
+        _transferOwnership(initialOwner);
+    }
+
+    modifier onlyOwner() {
+        require(owner() == _msgSender(), "Ownable: caller is not owner");
+        _;
+    }
+
+    function owner() public view returns (address) {
+        return _owner;
+    }
+
+    function transferOwnership(address newOwner) public onlyOwner {
+        require(newOwner != address(0), "Ownable: zero address");
+        _transferOwnership(newOwner);
+    }
+
+    function _transferOwnership(address newOwner) internal {
+        address oldOwner = _owner;
+        _owner = newOwner;
+        emit OwnershipTransferred(oldOwner, newOwner);
+    }
+}
+
+// -------------------- ERC20.sol --------------------
+contract ERC20 is Context, IERC20 {
+    event Transfer(address indexed from, address indexed to, uint256 value);
+    event Approval(address indexed owner, address indexed spender, uint256 value);
+
+    mapping(address => uint256) private _balances;
+    mapping(address => mapping(address => uint256)) private _allowances;
+    uint256 private _totalSupply;
+    string private _name;
+    string private _symbol;
+
+    constructor(string memory name_, string memory symbol_) {
+        _name = name_;
+        _symbol = symbol_;
+    }
+
+    function name() public view returns (string memory) { return _name; }
+    function symbol() public view returns (string memory) { return _symbol; }
+    function decimals() public pure returns (uint8) { return 18; }
+    function totalSupply() public view returns (uint256) { return _totalSupply; }
+    function balanceOf(address account) public view returns (uint256) { return _balances[account]; }
+
+    function transfer(address to, uint256 value) public returns (bool) {
+        _transfer(_msgSender(), to, value);
+        return true;
+    }
+
+    function allowance(address owner, address spender) public view returns (uint256) {
+        return _allowances[owner][spender];
+    }
+
+    function approve(address spender, uint256 value) public returns (bool) {
+        _approve(_msgSender(), spender, value);
+        return true;
+    }
+
+    function transferFrom(address from, address to, uint256 value) public returns (bool) {
+        _spendAllowance(from, _msgSender(), value);
+        _transfer(from, to, value);
+        return true;
+    }
+
+    function _transfer(address from, address to, uint256 value) internal {
+        require(from != address(0), "ERC20: transfer from zero");
+        require(to != address(0), "ERC20: transfer to zero");
+        uint256 fromBalance = _balances[from];
+        require(fromBalance >= value, "ERC20: transfer exceeds balance");
+        unchecked { _balances[from] = fromBalance - value; }
+        _balances[to] += value;
+        emit Transfer(from, to, value);
+    }
+
+    function _mint(address account, uint256 value) internal {
+        require(account != address(0), "ERC20: mint to zero");
+        _totalSupply += value;
+        _balances[account] += value;
+        emit Transfer(address(0), account, value);
+    }
+
+    function _approve(address owner, address spender, uint256 value) internal {
+        require(owner != address(0) && spender != address(0), "ERC20: approve zero");
+        _allowances[owner][spender] = value;
+        emit Approval(owner, spender, value);
+    }
+
+    function _spendAllowance(address owner, address spender, uint256 value) internal {
+        uint256 currentAllowance = allowance(owner, spender);
+        if (currentAllowance != type(uint256).max) {
+            require(currentAllowance >= value, "ERC20: insufficient allowance");
+            unchecked { _approve(owner, spender, currentAllowance - value); }
+        }
+    }
+}
+
+// -------------------- PONG.sol --------------------
+contract PONG is ERC20, Ownable {
+    using SafeERC20 for IERC20;
+
+    uint256 public constant TOTAL_SUPPLY = 1_000_000_000 * 1e18;
+    uint256 public constant PREMINT = 100_000_000 * 1e18;
+    uint256 public constant RATE = 5000; // 1 USDC = 5000 PONG
+
+    address public usdcAddress;
+    event TokensPurchased(address indexed buyer, uint256 usdcAmount, uint256 pongAmount);
+
+    constructor(address _usdcAddress) ERC20("PONG", "PONG") Ownable(msg.sender) {
+        require(_usdcAddress != address(0), "Invalid USDC address");
+        usdcAddress = _usdcAddress;
+
+        _mint(msg.sender, PREMINT);
+        _mint(address(this), TOTAL_SUPPLY - PREMINT);
+    }
+
+    function mintWithUSDC(uint256 usdcAmount) external {
+        require(usdcAmount > 0, "USDC amount > 0 required");
+        uint256 pongAmount = usdcAmount * RATE * 1e12; // USDC 6 decimals → PONG 18
+        require(balanceOf(address(this)) >= pongAmount, "Not enough PONG");
+
+        IERC20(usdcAddress).safeTransferFrom(msg.sender, address(this), usdcAmount);
+        _transfer(address(this), msg.sender, pongAmount);
+
+        emit TokensPurchased(msg.sender, usdcAmount, pongAmount);
+    }
+
+    function withdrawUSDC(uint256 amount) external onlyOwner {
+        IERC20(usdcAddress).safeTransfer(owner(), amount);
+    }
+
+    function withdrawPONG(uint256 amount) external onlyOwner {
+        _transfer(address(this), owner(), amount);
+    }
+}
