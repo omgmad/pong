@@ -1,0 +1,10 @@
+app.get('/mint', (req, res) => {
+  res.status(402).set({
+    'WWW-Authenticate': 'USDC 1'
+  }).send('Pay 1 USDC to mint 5K $PONG');
+});
+
+app.post('/callback', async (req, res) => {
+  await contract.mintViaX402(userAddress);
+  res.status(200).send('Minted!');
+});
