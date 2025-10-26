@@ -1,1 +1,32 @@
-pong
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract YourMemecoin is ERC20, Ownable {
+    uint256 public constant MINT_PRICE_USDC = 1e6; // 1 USDC (6 decimals)
+    uint256 public constant TOKENS_PER_MINT = 5000 * 1e18; // 5K tokens
+    address public usdcAddress; // USDC on Base: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
+    address public uniswapRouter;
+
+    constructor(address _usdc, address _router)
+        ERC20("PONG", "PONG")
+        Ownable(msg.sender)
+    {
+        usdcAddress = _usdc;
+        uniswapRouter = _router;
+    }
+
+    function mintViaX402(address minter) external {
+        IERC20(usdcAddress).transferFrom(minter, address(this), MINT_PRICE_USDC);
+        _mint(minter, TOKENS_PER_MINT);
+        _addLiquidity();
+    }
+
+    function _addLiquidity() internal {
+        // Uniswap router ашиглан LP нэмэх
+    }
+
+    function renounceOwnership() public override onlyOwner {}
+}
